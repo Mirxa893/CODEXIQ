@@ -45,25 +45,26 @@ import {
 } from '../ui/sheet';
 
 export const History = ({ user }: { user: User | undefined }) => {
-  const { id } = useParams();
-  const pathname = usePathname();
+  const { id } = useParams(); // Get current chat ID from URL params
+  const pathname = usePathname(); // Track changes in URL
 
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const {
     data: history,
     isLoading,
-    mutate,
+    mutate, // Used to re-fetch data when necessary
   } = useSWR<Array<Chat>>(user ? '/api/history' : null, fetcher, {
-    fallbackData: [],
+    fallbackData: [], // Provide fallback data if not yet loaded
   });
 
   useEffect(() => {
-    mutate();
+    mutate(); // Re-fetch chat history whenever the pathname changes
   }, [pathname, mutate]);
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+  // Handle the deletion of a chat
   const handleDelete = async () => {
     const deletePromise = fetch(`/api/chat?id=${deleteId}`, {
       method: 'DELETE',
@@ -72,9 +73,10 @@ export const History = ({ user }: { user: User | undefined }) => {
     toast.promise(deletePromise, {
       loading: 'Deleting chat...',
       success: () => {
+        // Optimistically update the chat list
         mutate((history) => {
           if (history) {
-            return history.filter((h) => h.id !== id);
+            return history.filter((h) => h.id !== deleteId); // Remove deleted chat
           }
         });
         return 'Chat deleted successfully';
@@ -82,11 +84,12 @@ export const History = ({ user }: { user: User | undefined }) => {
       error: 'Failed to delete chat',
     });
 
-    setShowDeleteDialog(false);
+    setShowDeleteDialog(false); // Close the delete dialog
   };
 
   return (
     <>
+      {/* Button to toggle the visibility of the history sheet */}
       <Button
         variant="outline"
         className="p-1.5 h-fit"
@@ -136,6 +139,7 @@ export const History = ({ user }: { user: User | undefined }) => {
               </Button>
             )}
 
+            {/* Chat history rendering */}
             <div className="flex flex-col overflow-y-scroll p-1 h-[calc(100dvh-124px)]">
               {!user ? (
                 <div className="text-zinc-500 h-dvh w-full flex flex-row justify-center items-center text-sm gap-2">
@@ -144,6 +148,7 @@ export const History = ({ user }: { user: User | undefined }) => {
                 </div>
               ) : null}
 
+              {/* No chats found */}
               {!isLoading && history?.length === 0 && user ? (
                 <div className="text-zinc-500 h-dvh w-full flex flex-row justify-center items-center text-sm gap-2">
                   <InfoIcon />
@@ -151,6 +156,7 @@ export const History = ({ user }: { user: User | undefined }) => {
                 </div>
               ) : null}
 
+              {/* Loading state */}
               {isLoading && user ? (
                 <div className="flex flex-col">
                   {[44, 32, 28, 52].map((item) => (
@@ -163,6 +169,7 @@ export const History = ({ user }: { user: User | undefined }) => {
                 </div>
               ) : null}
 
+              {/* Chats list */}
               {history &&
                 history.map((chat) => (
                   <div
@@ -187,6 +194,7 @@ export const History = ({ user }: { user: User | undefined }) => {
                       </Link>
                     </Button>
 
+                    {/* Dropdown menu for options */}
                     <DropdownMenu modal={true}>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -219,6 +227,7 @@ export const History = ({ user }: { user: User | undefined }) => {
         </SheetContent>
       </Sheet>
 
+      {/* Delete confirmation dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
