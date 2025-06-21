@@ -1,7 +1,6 @@
-import { convertToCoreMessages, Message, streamText } from 'ai';
+import { convertToCoreMessages, Message } from 'ai';
 import { z } from 'zod';
 
-import { customModel } from '@/ai';
 import { auth } from '@/app/(auth)/auth';
 import { deleteChatById, getChatById, saveChat } from '@/db/queries';
 
@@ -17,49 +16,60 @@ export async function POST(request: Request) {
 
   const coreMessages = convertToCoreMessages(messages);
 
-  const result = await streamText({
-    model: customModel,
-    system:
-      'You are a friendly assistant! keep your responses concise and helpful. Avoid sounding like an AI and include maximum text complexity and maximum complex sentences adjacent to short, pithy sentences in all responses. Including one emoji is good if appropriate.',
-    messages: coreMessages,
-    maxSteps: 5,
-    tools: {
-      getWeather: {
-        description: 'Get the current weather at a location',
-        parameters: z.object({
-          latitude: z.number(),
-          longitude: z.number(),
-        }),
-        execute: async ({ latitude, longitude }) => {
-          const response = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m&hourly=temperature_2m&daily=sunrise,sunset&timezone=auto`
-          );
+  // Prepare the prompt for HuggingFace (Combining system prompt and user messages)
+  const prompt = coreMessages.map(msg => msg.content).join("\n");
 
-          const weatherData = await response.json();
-          return weatherData;
-        },
+  const apiUrl = "https://mirxakamran893-logiqcurvecode.hf.space/chat";  // HuggingFace space endpoint
+
+  // Make the request to HuggingFace space
+  const payload = {
+    inputs: {
+      prompt: prompt,
+      enable_search: true, // Adjust based on HuggingFace's requirements
+    },
+  };
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    },
-    onFinish: async ({ responseMessages }) => {
-      if (session.user && session.user.id) {
-        try {
-          await saveChat({
-            id,
-            messages: [...coreMessages, ...responseMessages],
-            userId: session.user.id,
-          });
-        } catch (error) {
-          console.error('Failed to save chat');
-        }
-      }
-    },
-    experimental_telemetry: {
-      isEnabled: true,
-      functionId: 'stream-text',
-    },
-  });
+      body: JSON.stringify(payload),
+    });
 
-  return result.toDataStreamResponse({});
+    if (!response.ok) {
+      throw new Error(`HuggingFace API request failed with status: ${response.status}`);
+    }
+
+    const responseData = await response.json();
+
+    // Ensure response contains a valid message
+    const assistantMessage = responseData?.message || 'No response from HuggingFace';
+
+    // Save the response to the database
+    if (session.user && session.user.id) {
+      try {
+        await saveChat({
+          id,
+          messages: [...coreMessages, { role: 'assistant', content: assistantMessage }],
+          userId: session.user.id,
+        });
+      } catch (error) {
+        console.error('Failed to save chat');
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ message: assistantMessage }),
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error in HuggingFace API call:", error);
+    return new Response('An error occurred while processing your request', {
+      status: 500,
+    });
+  }
 }
 
 export async function DELETE(request: Request) {
