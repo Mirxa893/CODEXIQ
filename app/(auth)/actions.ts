@@ -25,11 +25,19 @@ export const login = async (
       password: formData.get('password'),
     });
 
-    await signIn('credentials', {
-      email: validatedData.email,
+    console.log("Login attempt with data:", validatedData); // Debugging
+
+    // Sign in with credentials
+    const loginResult = await signIn('credentials', {
+      email: validatedData.email.toLowerCase(), // Normalize email to lowercase
       password: validatedData.password,
       redirect: false,
     });
+
+    if (loginResult?.error) {
+      console.log("Login error:", loginResult.error); // Debugging
+      return { status: 'failed' }; // Failed login
+    }
 
     return { status: 'success' };
   } catch (error) {
@@ -61,14 +69,23 @@ export const register = async (
       password: formData.get('password'),
     });
 
-    let [user] = await getUser(validatedData.email);
+    const emailNormalized = validatedData.email.toLowerCase(); // Normalize email
+
+    console.log("Registration attempt with data:", validatedData); // Debugging
+
+    // Check if the user already exists
+    let [user] = await getUser(emailNormalized);
 
     if (user) {
-      return { status: 'user_exists' } as RegisterActionState;
+      console.log("User already exists:", user); // Debugging
+      return { status: 'user_exists' };
     } else {
-      await createUser(validatedData.email, validatedData.password);
+      // Create the user (ensure proper password hashing in your database logic)
+      await createUser(emailNormalized, validatedData.password);
+
+      // Sign in after creating the user
       await signIn('credentials', {
-        email: validatedData.email,
+        email: emailNormalized,
         password: validatedData.password,
         redirect: false,
       });
