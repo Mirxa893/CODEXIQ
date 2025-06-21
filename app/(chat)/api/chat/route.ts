@@ -44,8 +44,14 @@ export async function POST(request: Request) {
 
     const responseData = await response.json();
 
+    // Debugging: Check the entire response to ensure you have the right field
+    console.log('HuggingFace response:', responseData);
+
     // Ensure response contains a valid message
     const assistantMessage = responseData?.message || 'No response from HuggingFace';
+
+    // Debugging: Check if we received the assistant message
+    console.log('Assistant message:', assistantMessage);
 
     // Save the response to the database
     if (session.user && session.user.id) {
